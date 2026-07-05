@@ -1,0 +1,485 @@
+---
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SubWave</title>
+  </head>
+  <body>
+    <div class="app">
+      <header class="toolbar">
+        <div class="tb-group brand">
+          <strong>SubWave</strong>
+          <span id="fmt-badge" class="badge" style="display: none"></span>
+        </div>
+
+        <div class="tb-group">
+          <label class="file-btn">Waveform JSON<input id="wf-file" type="file" accept=".json,application/json" hidden /></label>
+          <label class="file-btn">Subtítulos<input id="sub-file" type="file" accept=".ass,.ssa,.srt" hidden /></label>
+          <label class="file-btn ghost">Keyframes .log<input id="kf-file" type="file" accept=".log,.txt" hidden /></label>
+          <label class="ctl" title="FPS del vídeo para convertir keyframes a tiempo">FPS <input id="kf-fps" type="number" step="0.001" min="1" value="23.976" /></label>
+          <span id="kf-count" class="muted" style="display: none"></span>
+          <label class="file-btn ghost">Audio (opcional)<input id="audio-file" type="file" accept="audio/*" hidden /></label>
+        </div>
+
+        <div class="tb-group transport">
+          <button id="play" disabled title="Reproducir / Pausar (Espacio)">▶</button>
+          <span class="time"><span id="time-cur">0:00.000</span> / <span id="time-dur">0:00.000</span></span>
+          <label class="ctl chk" title="Reproducir el subtítulo automáticamente al seleccionarlo"><input id="autoplay" type="checkbox" /> Auto</label>
+        </div>
+
+        <div class="tb-group controls">
+          <label class="ctl">Zoom <input id="zoom" type="range" min="20" max="400" step="10" value="80" /><span id="zoom-val" class="muted">80 px/s</span></label>
+          <label class="ctl">Alto <input id="gain" type="range" min="0.4" max="4" step="0.1" value="1.2" /></label>
+          <label class="ctl chk" title="Atrae los bordes a keyframes y a los cambios de la onda"><input id="magnet" type="checkbox" checked /> Imán</label>
+          <label class="ctl chk" title="Clic izquierdo fija el inicio y clic derecho el fin del subtítulo seleccionado"><input id="fast" type="checkbox" /> Rápido</label>
+        </div>
+
+        <div class="tb-group">
+          <span class="muted">Timing:</span>
+          <button id="raw-timing" title="Pega inicio y fin a la voz detectada en la onda, sin márgenes">Raw</button>
+          <button id="post-timing" title="Aplica márgenes, uniones y keyframes sobre los tiempos actuales">Post</button>
+          <button id="full-timing" title="Raw + Post: detecta la voz y aplica márgenes, uniones y keyframes">Full</button>
+        </div>
+
+        <div class="tb-group export">
+          <span class="muted">Exportar:</span>
+          <button id="export-srt" disabled>SRT</button>
+          <button id="export-ass" disabled>ASS</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section class="timeline-wrap">
+          <div id="empty-hint" class="empty">
+            <h2>Carga el waveform y los subtítulos</h2>
+            <p>
+              Carga un <code>.waveform.json</code> (pares min/max por niveles) junto con tu archivo
+              <code>.ass</code> o <code>.srt</code>. La línea de tiempo se parte en varias filas
+              para llenar la pantalla sin scroll horizontal. Opcionalmente añade un
+              <code>_keyframes.log</code> (SCXviD/XviD) para ver los cortes de escena.
+            </p>
+            <ul>
+              <li><b>Clic</b> en un subtítulo o en la lista para seleccionarlo; arrastra los <b>extremos</b> para ajustarlo.</li>
+              <li><b>Imán</b> atrae los bordes a keyframes y a los cambios de la onda.</li>
+              <li><b>Rápido</b>: clic izquierdo fija el inicio y clic derecho el fin del subtítulo seleccionado.</li>
+              <li><b>Enter</b> o <b>↑ ↓</b> cambian de subtítulo · <b>← →</b> mueven el cursor · <b>Ctrl+Z</b> deshace.</li>
+              <li><b>Raw</b> pega los tiempos a la voz detectada, <b>Post</b> aplica márgenes, uniones y keyframes, <b>Full</b> hace ambos.</li>
+              <li>Los subtítulos que se solapan se muestran con colores distintos.</li>
+            </ul>
+          </div>
+          <div id="timeline"></div>
+        </section>
+
+        <aside class="sidebar">
+          <div class="panel">
+            <div class="panel-head">Subtítulos · <span id="sub-count">0</span></div>
+            <div id="sub-list" class="sub-list"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">Edición</div>
+            <div id="insp-empty" class="insp-empty">Selecciona un subtítulo para editarlo.</div>
+            <div id="insp" class="insp" style="display: none">
+              <div class="insp-row">
+                <strong id="f-num">#</strong>
+                <span class="insp-right">
+                  <button id="play-seg" class="mini" disabled title="Reproducir solo este subtítulo">▶ Sub</button>
+                  <span id="f-dur" class="muted"></span>
+                </span>
+              </div>
+
+              <label class="fld">Inicio<input id="f-start" type="text" inputmode="numeric" spellcheck="false" /></label>
+              <div class="btn-row">
+                <button class="nudge mini" data-edge="start" data-delta="-100">−100</button>
+                <button class="nudge mini" data-edge="start" data-delta="-10">−10</button>
+                <button class="nudge mini" data-edge="start" data-delta="10">+10</button>
+                <button class="nudge mini" data-edge="start" data-delta="100">+100</button>
+                <button id="set-start" class="mini" title="Fijar inicio en el cursor">⏱</button>
+              </div>
+
+              <label class="fld">Fin<input id="f-end" type="text" inputmode="numeric" spellcheck="false" /></label>
+              <div class="btn-row">
+                <button class="nudge mini" data-edge="end" data-delta="-100">−100</button>
+                <button class="nudge mini" data-edge="end" data-delta="-10">−10</button>
+                <button class="nudge mini" data-edge="end" data-delta="10">+10</button>
+                <button class="nudge mini" data-edge="end" data-delta="100">+100</button>
+                <button id="set-end" class="mini" title="Fijar fin en el cursor">⏱</button>
+              </div>
+
+              <label class="fld">Texto<textarea id="f-text" rows="3" spellcheck="false"></textarea></label>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <div id="toast"></div>
+    <audio id="audio" preload="auto"></audio>
+
+    <script>
+      import { initEditor } from '../lib/editor';
+      initEditor();
+    </script>
+
+    <style is:global>
+      :root {
+        --bg: #0b0f14;
+        --panel: #131a23;
+        --panel-2: #0f151d;
+        --line: #222d3a;
+        --text: #e6edf3;
+        --muted: #7d8b9a;
+        --accent: #3f9cff;
+        --accent-2: #40e0a0;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        font-size: 14px;
+        overflow-x: hidden;
+      }
+      .app {
+        min-height: 100vh;
+      }
+
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 18px;
+        padding: 10px 14px;
+        background: rgba(15, 21, 29, 0.95);
+        backdrop-filter: blur(6px);
+        border-bottom: 1px solid var(--line);
+      }
+      .tb-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .brand strong {
+        font-weight: 600;
+      }
+      .badge {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: var(--accent);
+        color: #04121f;
+      }
+      .file-btn {
+        cursor: pointer;
+        padding: 6px 11px;
+        border-radius: 7px;
+        background: var(--accent);
+        color: #04121f;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .file-btn.ghost {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid var(--line);
+        font-weight: 500;
+      }
+      .file-btn:hover {
+        filter: brightness(1.08);
+      }
+      button {
+        cursor: pointer;
+        font: inherit;
+        color: var(--text);
+        background: #1b2530;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 6px 11px;
+      }
+      button:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .transport #play {
+        width: 38px;
+        font-size: 14px;
+      }
+      .time {
+        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+      }
+      .controls .ctl {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .controls input[type='range'] {
+        width: 110px;
+        accent-color: var(--accent);
+      }
+      .ctl.chk {
+        cursor: pointer;
+      }
+      .ctl input[type='number'] {
+        width: 76px;
+        font: inherit;
+        color: var(--text);
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 4px 6px;
+        font-variant-numeric: tabular-nums;
+      }
+      .ctl input[type='number']:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .tb-group .ctl {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .content {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 14px;
+        align-items: start;
+        padding: 14px;
+      }
+      .timeline-wrap {
+        min-width: 0;
+      }
+      #timeline {
+        touch-action: pan-y;
+      }
+      #timeline.fast {
+        cursor: crosshair;
+      }
+      #toast {
+        position: fixed;
+        left: 50%;
+        bottom: 24px;
+        transform: translateX(-50%) translateY(8px);
+        background: #1b2530;
+        border: 1px solid var(--line);
+        color: var(--text);
+        padding: 8px 14px;
+        border-radius: 8px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s, transform 0.18s;
+        z-index: 50;
+        max-width: 90vw;
+      }
+      #toast.show {
+        opacity: 1;
+        transform: translateX(-50%);
+      }
+      .wf-row {
+        width: 100%;
+        margin-bottom: 6px;
+        border-radius: 6px;
+        overflow: hidden;
+        background: #0f141b;
+      }
+      .wf-row canvas {
+        display: block;
+        width: 100%;
+      }
+      .empty {
+        border: 1px dashed var(--line);
+        border-radius: 10px;
+        padding: 22px;
+        color: var(--muted);
+        background: var(--panel-2);
+      }
+      .empty h2 {
+        margin: 0 0 8px;
+        color: var(--text);
+      }
+      .empty code {
+        background: #0a0e13;
+        padding: 1px 5px;
+        border-radius: 4px;
+        color: var(--accent-2);
+      }
+      .empty ul {
+        margin: 12px 0 0;
+        padding-left: 18px;
+      }
+      .empty li {
+        margin: 4px 0;
+      }
+
+      .sidebar {
+        position: sticky;
+        top: 84px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        max-height: calc(100vh - 96px);
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .panel-head {
+        padding: 9px 12px;
+        font-weight: 600;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel-2);
+      }
+      .sub-list {
+        overflow: auto;
+        max-height: 38vh;
+      }
+      .sub-item {
+        display: grid;
+        grid-template-columns: 30px 1fr;
+        grid-template-areas: 'num time' 'num text';
+        gap: 0 8px;
+        width: 100%;
+        text-align: left;
+        background: transparent;
+        border: none;
+        border-bottom: 1px solid var(--line);
+        border-radius: 0;
+        padding: 7px 12px;
+      }
+      .sub-item:hover {
+        background: #182230;
+      }
+      .sub-item.sel {
+        background: #15281f;
+        box-shadow: inset 3px 0 0 var(--accent-2);
+      }
+      .si-num {
+        grid-area: num;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+        align-self: center;
+      }
+      .si-time {
+        grid-area: time;
+        color: var(--accent);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .si-text {
+        grid-area: text;
+        color: var(--text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .insp,
+      .insp-empty {
+        padding: 12px;
+      }
+      .insp-empty {
+        color: var(--muted);
+      }
+      .insp-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .insp-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #play-seg {
+        flex: 0 0 auto;
+      }
+      .fld {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 6px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .fld input,
+      .fld textarea {
+        font: inherit;
+        color: var(--text);
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 7px 9px;
+        font-variant-numeric: tabular-nums;
+        resize: vertical;
+      }
+      .fld input:focus,
+      .fld textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .btn-row {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 10px;
+      }
+      .mini {
+        padding: 4px 7px;
+        font-size: 12px;
+        flex: 1;
+      }
+      #set-start,
+      #set-end {
+        flex: 0 0 auto;
+      }
+
+      @media (max-width: 900px) {
+        .content {
+          grid-template-columns: 1fr;
+        }
+        .sidebar {
+          position: static;
+          max-height: none;
+        }
+        .sub-list {
+          max-height: 30vh;
+        }
+      }
+      @media (max-width: 560px) {
+        .toolbar {
+          gap: 8px 12px;
+        }
+        .controls .ctl.chk {
+          order: 3;
+        }
+      }
+    </style>
+  </body>
+</html>
