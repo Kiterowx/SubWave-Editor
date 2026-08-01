@@ -2,6 +2,6 @@ import { defineConfig } from 'astro/config';
 
 export default defineConfig({
   output: 'static',
-  site: 'https://kitherow.github.io',
+  site: 'https://kiterowx.github.io',
   base: '/SubWave-Editor',
 });

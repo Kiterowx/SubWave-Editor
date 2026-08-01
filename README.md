@@ -4,11 +4,11 @@ SubWave ajusta inicio y fin de archivos `.ass`, `.ssa` y `.srt` sobre la forma
 de onda del audio. Permite seleccionar una linea, reposicionar sus extremos,
 previsualizar el segmento y exportar el resultado.
 
-Sitio público: <https://kitherow.github.io/SubWave-Editor/>
+Sitio público: <https://kiterowx.github.io/SubWave-Editor/>
 
 ## Uso
 
-SubWave trabaja con `.waveform.json` creados por **Waveform JSON** desde [Chrono Generators](https://github.com/Kitherow/Chrono-Generators-Scripts), subtitulos `.ass`, `.ssa` o `.srt`, y audio opcional para previsualizacion. La edicion se hace desde la linea de tiempo, la lista de subtitulos y el panel de tiempos. La exportacion conserva cabeceras, estilos y campos no editados cuando el formato de salida es ASS.
+SubWave trabaja con `.waveform.json` creados por **Waveform JSON** desde [Chrono Generators](https://github.com/Kiterowx/Chrono-Generators-Scripts), subtitulos `.ass`, `.ssa` o `.srt`, y audio opcional para previsualizacion. La edicion se hace desde la linea de tiempo, la lista de subtitulos y el panel de tiempos. La exportacion conserva cabeceras, estilos y campos no editados cuando el formato de salida es ASS.
 
 ## Estructura
 
